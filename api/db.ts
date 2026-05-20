@@ -19,10 +19,10 @@ export async function getUsers() {
   return JSON.parse(data);
 }
 
-export async function saveUser(user) {
+export async function saveUser(user: any) {
   await ensureDB();
   const users = await getUsers();
-  const index = users.findIndex((u) => u.id === user.id);
+  const index = users.findIndex((u: any) => u.id === user.id);
   if (index >= 0) {
     users[index] = user;
   } else {
@@ -32,14 +32,14 @@ export async function saveUser(user) {
   return user;
 }
 
-export async function getUserById(id) {
+export async function getUserById(id: string) {
   const users = await getUsers();
-  return users.find((u) => u.id === id);
+  return users.find((u: any) => u.id === id);
 }
 
-export async function deleteUser(id) {
+export async function deleteUser(id: string) {
   const users = await getUsers();
-  const filtered = users.filter((u) => u.id !== id);
+  const filtered = users.filter((u: any) => u.id !== id);
   await fs.writeFile(DB_FILE, JSON.stringify(filtered, null, 2));
   return { success: true };
 }
