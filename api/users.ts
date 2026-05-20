@@ -64,38 +64,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Save user to database
       const user = await saveUser(req.body);
 
-      // Mint NFT on blockchain if not already minted
-      if (!user.nftMinted) {
-        try {
-          const { txHash, nftTokenId, blockNumber } = await mintNFT(
-            user.id,
-            user.email,
-            user.tier
-          );
+      // Attempt to mint NFT on blockchain (non-blocking)
+      // If it fails, still return success - the user is saved even if NFT minting fails
+      try {
+        if (!user.nftMinted) {
+          try {
+            const { txHash, nftTokenId, blockNumber } = await mintNFT(
+              user.id,
+              user.email,
+              user.tier
+            );
 
-          // Update user with blockchain data
-          user.nftMinted = true;
-          user.blockchainTxHash = txHash;
-          user.nftTokenId = nftTokenId;
-          user.blockchainBlockNumber = blockNumber;
+            // Update user with blockchain data
+            user.nftMinted = true;
+            user.blockchainTxHash = txHash;
+            user.nftTokenId = nftTokenId;
+            user.blockchainBlockNumber = blockNumber;
 
-          await saveUser(user);
+            await saveUser(user);
 
-          return res.status(201).json({
-            ...user,
-            blockchain: {
-              txHash,
-              nftTokenId,
-              blockNumber,
-              chainId: 137,
-              contractAddress: "0x1234567890abcdef1234567890abcdef12345678",
-              message: "NFT successfully minted on Polygon blockchain",
-            },
-          });
-        } catch (blockchainError) {
-          console.warn("Blockchain minting failed, continuing without NFT:", blockchainError);
-          return res.status(201).json(user);
+            return res.status(201).json({
+              ...user,
+              blockchain: {
+                txHash,
+                nftTokenId,
+                blockNumber,
+                chainId: 137,
+                contractAddress: "0x1234567890abcdef1234567890abcdef12345678",
+                message: "NFT successfully minted on Polygon blockchain",
+              },
+            });
+          } catch (blockchainError) {
+            console.warn("Blockchain minting failed, continuing without NFT:", blockchainError);
+            // Still return user data even if NFT minting fails
+            return res.status(201).json(user);
+          }
         }
+      } catch (nftError) {
+        console.warn("NFT handling error:", nftError);
+        // Return user data without blockchain info if anything fails
+        return res.status(201).json(user);
       }
 
       return res.status(201).json(user);
