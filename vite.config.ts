@@ -13,9 +13,6 @@ export default defineConfig({
     tsconfigPaths(),
     cloudflarePlugin(),
   ],
-  server: {
-    entry: "src/server.ts",
-  },
   ssr: {
     noExternal: ["sonner"],
   },
