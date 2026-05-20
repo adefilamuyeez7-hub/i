@@ -128,6 +128,12 @@ function Nav() {
             Docs
           </Link>
           <Link
+            to="/waitlist"
+            className="hover:opacity-60 text-tomato font-bold"
+          >
+            Early Access
+          </Link>
+          <Link
             to="/onboarding"
             className="rounded-full bg-ink/10 px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink hover:bg-ink/15"
           >
@@ -629,12 +635,18 @@ function SectionCta() {
           <br />
           You're done<span className="text-tomato">.</span>
         </h2>
-        <div className="mt-10">
+        <div className="mt-10 flex gap-4 justify-center">
           <Link
             to="/onboarding"
             className="inline-flex rounded-full bg-ink px-9 py-5 text-sm font-bold uppercase tracking-[0.14em] text-cream shadow-2xl shadow-ink/20 hover:-translate-y-0.5 transition-transform"
           >
             Get verified now
+          </Link>
+          <Link
+            to="/waitlist"
+            className="inline-flex rounded-full bg-tomato px-9 py-5 text-sm font-bold uppercase tracking-[0.14em] text-cream shadow-2xl shadow-tomato/20 hover:-translate-y-0.5 transition-transform"
+          >
+            Join early access
           </Link>
         </div>
       </div>
@@ -659,6 +671,7 @@ function Footer() {
         </div>
         <div className="flex gap-6 text-sm text-ink/65">
           <Link to="/docs" className="hover:text-ink">Docs</Link>
+          <Link to="/waitlist" className="hover:text-ink">Early Access</Link>
           <a href="#" className="hover:text-ink">Legal</a>
           <a href="#" className="hover:text-ink">Status</a>
         </div>
