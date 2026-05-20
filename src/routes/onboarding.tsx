@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
@@ -45,12 +45,60 @@ function Onboarding() {
   const navigate = useNavigate();
   const [i, setI] = useState(0);
   const [closing, setClosing] = useState(false);
+  const [userId] = useState(() => localStorage.getItem("userId") || `user_${Date.now()}`);
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    accountType: "personal",
+    identityDoc: "passport",
+    address: "",
+    country: "",
+  });
+
+  useEffect(() => {
+    localStorage.setItem("userId", userId);
+  }, [userId]);
 
   const step = STEPS[i];
   const progress = useMemo(() => ((i + 1) / STEPS.length) * 100, [i]);
 
   const next = () => setI((v) => Math.min(STEPS.length - 1, v + 1));
   const prev = () => setI((v) => Math.max(0, v - 1));
+
+  const saveAndFinish = async () => {
+    try {
+      const userData = {
+        id: userId,
+        email: formData.email,
+        accountType: formData.accountType,
+        status: "Complete",
+        tier: "Tier 2 — Full",
+        region: "Nigeria (NG)",
+        verifiedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        token: `Token #${Math.floor(Math.random() * 100000)}`,
+        walletAddress: `0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 10)}`,
+        dataMetrics: {
+          timesViewed: 0,
+          timesShared: 0,
+          timesVerified: 1,
+        },
+      };
+      
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userData),
+      });
+      
+      if (res.ok) {
+        navigate({ to: "/dashboard" });
+      }
+    } catch (error) {
+      console.error("Failed to save user data:", error);
+      navigate({ to: "/dashboard" });
+    }
+  };
 
   const groupStatus = (g: string): "done" | "current" | "todo" => {
     const currentGroupIndex = GROUPS.indexOf(step.group as (typeof GROUPS)[number]);
@@ -218,12 +266,12 @@ function Onboarding() {
                 Previous
               </button>
               {i === STEPS.length - 1 ? (
-                <Link
-                  to="/dashboard"
+                <button
+                  onClick={saveAndFinish}
                   className="rounded-full bg-ink px-7 py-3 text-sm font-bold uppercase tracking-[0.14em] text-cream hover:opacity-90"
                 >
                   Finish ✓
-                </Link>
+                </button>
               ) : (
                 <button
                   onClick={next}

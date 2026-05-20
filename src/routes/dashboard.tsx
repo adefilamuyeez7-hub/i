@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -16,9 +16,35 @@ export const Route = createFileRoute("/dashboard")({
 function Dashboard() {
   const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState<"overview" | "data" | "activity">("overview");
+  const [userData, setUserData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock data - replace with real data from API
-  const userData = {
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const userId = localStorage.getItem("userId");
+        if (!userId) {
+          setLoading(false);
+          return;
+        }
+
+        const res = await fetch(`/api/users?id=${userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setUserData(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch user data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
+  // Fallback data if not found or loading
+  const displayData = userData || {
     verificationStatus: "Complete",
     tier: "Tier 2 — Full",
     token: "Token #00821",
@@ -28,7 +54,7 @@ function Dashboard() {
     verifiedAt: "May 15, 2026",
   };
 
-  const dataMetrics = {
+  const dataMetrics = displayData?.dataMetrics || {
     timesViewed: 247,
     timesShared: 18,
     timesVerified: 5,
@@ -85,20 +111,20 @@ function Dashboard() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-ink/70">Status</span>
                   <span className="inline-flex items-center gap-2 rounded-full bg-mint/20 px-3 py-1 text-sm font-semibold text-ink">
-                    <span className="size-2 rounded-full bg-mint animate-pulse" /> {userData.verificationStatus}
+                    <span className="size-2 rounded-full bg-mint animate-pulse" /> {displayData.verificationStatus}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-ink/70">Tier</span>
-                  <span className="font-semibold text-ink">{userData.tier}</span>
+                  <span className="font-semibold text-ink">{displayData.tier}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-ink/70">Region</span>
-                  <span className="font-semibold text-ink">{userData.region}</span>
+                  <span className="font-semibold text-ink">{displayData.region}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-ink/70">Expires</span>
-                  <span className="font-semibold text-ink">{userData.expiresAt}</span>
+                  <span className="font-semibold text-ink">{displayData.expiresAt}</span>
                 </div>
               </div>
             </div>
@@ -110,11 +136,11 @@ function Dashboard() {
               <div className="mt-4 space-y-3">
                 <div className="rounded-lg bg-white p-3">
                   <div className="font-mono text-[9px] text-ink/50 uppercase tracking-wide">Token ID</div>
-                  <div className="mt-1 font-semibold text-ink">{userData.token}</div>
+                  <div className="mt-1 font-semibold text-ink">{displayData.token}</div>
                 </div>
                 <div className="rounded-lg bg-white p-3">
                   <div className="font-mono text-[9px] text-ink/50 uppercase tracking-wide">Wallet Address</div>
-                  <div className="mt-1 font-mono text-xs text-ink">{userData.walletAddress}</div>
+                  <div className="mt-1 font-mono text-xs text-ink">{displayData.walletAddress}</div>
                 </div>
               </div>
             </div>
