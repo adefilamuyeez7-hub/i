@@ -122,6 +122,12 @@ function Nav() {
           <a href="#how" className="hover:opacity-60">Protocol</a>
           <a href="#pricing" className="hover:opacity-60">Pricing</a>
           <Link
+            to="/docs"
+            className="hover:opacity-60"
+          >
+            Docs
+          </Link>
+          <Link
             to="/onboarding"
             className="rounded-full bg-ink/10 px-4 py-2 text-xs font-bold uppercase tracking-wider text-ink hover:bg-ink/15"
           >
@@ -645,7 +651,7 @@ function Footer() {
           © 2026 ProofPass Protocol · Sovereign identity infrastructure
         </div>
         <div className="flex gap-6 text-sm text-ink/65">
-          <a href="#" className="hover:text-ink">Docs</a>
+          <Link to="/docs" className="hover:text-ink">Docs</Link>
           <a href="#" className="hover:text-ink">Legal</a>
           <a href="#" className="hover:text-ink">Status</a>
         </div>
