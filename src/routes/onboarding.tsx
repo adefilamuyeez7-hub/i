@@ -49,11 +49,19 @@ function Onboarding() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
+    passwordConfirm: "",
     accountType: "personal",
     identityDoc: "passport",
     address: "",
     country: "",
+    firstName: "",
+    lastName: "",
+    dateOfBirth: "",
+    nationality: "",
   });
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("userId", userId);
@@ -62,7 +70,112 @@ function Onboarding() {
   const step = STEPS[i];
   const progress = useMemo(() => ((i + 1) / STEPS.length) * 100, [i]);
 
-  const next = () => setI((v) => Math.min(STEPS.length - 1, v + 1));
+  // Validate current step before proceeding
+  const validateCurrentStep = async (): Promise<boolean> => {
+    setValidationErrors([]);
+
+    try {
+      if (step.id === "email") {
+        const res = await fetch("/api/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "validate-email", email: formData.email }),
+        });
+        const data = await res.json();
+        if (!data.valid) {
+          setValidationErrors([data.error]);
+          return false;
+        }
+        // Store verification code
+        setVerificationCode(data.code);
+        return true;
+      }
+
+      if (step.id === "email-sent") {
+        // Check if email verified
+        if (!emailVerified) {
+          setValidationErrors(["Please verify your email first"]);
+          return false;
+        }
+        return true;
+      }
+
+      if (step.id === "password") {
+        const res = await fetch("/api/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "validate-password",
+            password: formData.password,
+            passwordConfirm: formData.passwordConfirm,
+          }),
+        });
+        const data = await res.json();
+        if (!data.valid) {
+          setValidationErrors(data.errors);
+          return false;
+        }
+        return true;
+      }
+
+      if (step.id === "identity-doc") {
+        const res = await fetch("/api/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "validate-identity-doc",
+            identityDoc: {
+              docType: formData.identityDoc,
+              docNumber: formData.identityDoc,
+              expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+              issuingCountry: formData.country,
+            },
+          }),
+        });
+        const data = await res.json();
+        if (!data.valid) {
+          setValidationErrors(data.errors);
+          return false;
+        }
+        return true;
+      }
+
+      if (step.id === "address") {
+        const res = await fetch("/api/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "validate-address",
+            address: {
+              country: formData.country,
+              state: formData.address,
+              city: formData.address,
+              postalCode: "10001",
+              address: formData.address,
+            },
+          }),
+        });
+        const data = await res.json();
+        if (!data.valid) {
+          setValidationErrors(data.errors);
+          return false;
+        }
+        return true;
+      }
+
+      return true;
+    } catch (error) {
+      setValidationErrors(["Validation error occurred"]);
+      return false;
+    }
+  };
+
+  const next = async () => {
+    const isValid = await validateCurrentStep();
+    if (isValid) {
+      setI((v) => Math.min(STEPS.length - 1, v + 1));
+    }
+  };
   const prev = () => setI((v) => Math.max(0, v - 1));
 
   const saveAndFinish = async () => {
@@ -320,6 +433,15 @@ function nextLabel(id: string): string {
 /* -------- Step bodies -------- */
 
 function StepBody({ step }: { step: string }) {
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    passwordConfirm: "",
+    firstName: "",
+    lastName: "",
+  });
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
   switch (step) {
     case "account":
       return <AccountStep />;
@@ -327,7 +449,17 @@ function StepBody({ step }: { step: string }) {
       return (
         <Form>
           <Label>Email address</Label>
-          <Input type="email" placeholder="danyjones@email.com" />
+          <Input
+            type="email"
+            placeholder="danyjones@email.com"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+          />
+          {validationErrors.length > 0 && (
+            <div className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+              {validationErrors.map((err, i) => <div key={i}>{err}</div>)}
+            </div>
+          )}
           <Hint>We need your email for security reasons and to keep technical communication.</Hint>
         </Form>
       );
@@ -336,9 +468,22 @@ function StepBody({ step }: { step: string }) {
         <div className="space-y-5">
           <div className="rounded-2xl bg-cream/60 p-5">
             <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink/50">Verification link sent to</div>
-            <div className="mt-1 font-semibold">danyjones@email.com</div>
+            <div className="mt-1 font-semibold">{formData.email || "your email"}</div>
           </div>
           <Hint>Didn't receive the email? Please check your spam folder or resend the link.</Hint>
+          <label className="inline-flex items-center gap-2 text-sm text-ink/70 mt-4">
+            <input
+              type="checkbox"
+              className="size-4 accent-[oklch(0.27_0.16_268)]"
+              onChange={(e) => setValidationErrors([])}
+            />
+            I have verified my email address
+          </label>
+          {validationErrors.length > 0 && (
+            <div className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+              {validationErrors.map((err, i) => <div key={i}>{err}</div>)}
+            </div>
+          )}
         </div>
       );
     case "password":
@@ -346,9 +491,24 @@ function StepBody({ step }: { step: string }) {
         <div className="grid gap-8 md:grid-cols-[1fr_240px]">
           <Form>
             <Label>Your password</Label>
-            <Input type="password" placeholder="Write your password" />
+            <Input
+              type="password"
+              placeholder="Write your password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            />
             <Label className="mt-5">Confirm password</Label>
-            <Input type="password" placeholder="Re-enter your password" />
+            <Input
+              type="password"
+              placeholder="Re-enter your password"
+              value={formData.passwordConfirm}
+              onChange={(e) => setFormData({ ...formData, passwordConfirm: e.target.value })}
+            />
+            {validationErrors.length > 0 && (
+              <div className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+                {validationErrors.map((err, i) => <div key={i}>{err}</div>)}
+              </div>
+            )}
           </Form>
           <RuleBox
             title="Password recommendations"
