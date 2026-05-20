@@ -1,53 +1,439 @@
-# ProofPass Neobank Integration Documentation
+# ProofPass SaaS - Neobank Integration Guide
 
-## 🏦 Quick Overview
+## For Neobank Founders: How to Use This SaaS
 
-ProofPass provides **portable KYC verification** that neobanks can integrate in **3 ways:**
+### 1. **Get Your API Key**
 
-1. **Verify Existing Users** - Check if a user is already verified with ProofPass (instant onboarding)
-2. **Register New Users** - Save ProofPass verifications to database after your KYC
-3. **Share Verification** - Enable users to use their ProofPass verification across multiple banks
+**Step 1:** Go to https://proof-pass-verified-main.vercel.app/admin
+- Login with your neobank token (provided by ProofPass team)
+- Navigate to **API Keys** tab
+
+**Step 2:** Generate API Key
+- Fill in:
+  - **Neobank Name:** Your bank name (e.g., "Flutterwave")
+  - **Key Name:** Environment (e.g., "Production", "Staging")
+- Click **Generate Key**
+- You'll receive:
+  - **Public Key:** `pk_xxxxxxxx` (share this with clients)
+  - **Secret Key:** `sk_xxxxxxxx` (KEEP SECURE - never share)
+
+**Step 3:** Store Your Keys
+```
+Production:
+  Public:  pk_5yt4mfl188
+  Secret:  sk_bs8rt5wgzf
+
+Store secret in environment variables:
+PROOFPASS_API_KEY=sk_bs8rt5wgzf
+```
 
 ---
 
-## 📋 Integration Methods
+## 2. **How to Verify Users WITHOUT Storing Data**
 
-### **Method 1: Check If User Already Has ProofPass Verification**
+### Architecture: Verification Flow (No Permanent Storage)
 
-When a user tries to sign up, check if they're already verified:
+```
+┌─────────────────────────────────────────────────────────────┐
+│ YOUR NEOBANK APP                                            │
+│                                                             │
+│ 1. User starts KYC                                         │
+│    ↓                                                       │
+│ 2. User fills form:                                        │
+│    • Name: "John Doe"                                      │
+│    • ID: "NG-123456789"                                    │
+│    • Face: [photo upload]                                 │
+└─────────────────────────────────────────────────────────────┘
+                    ↓
+        (Send to ProofPass API)
+                    ↓
+┌─────────────────────────────────────────────────────────────┐
+│ PROOFPASS VERIFICATION (Ephemeral)                          │
+│                                                             │
+│ 1. Receive user data                                       │
+│ 2. Run verification checks:                                │
+│    ✓ Liveness check (face is real)                        │
+│    ✓ ID authenticity (document valid)                     │
+│    ✓ ID-Face matching (photo matches ID)                  │
+│    ✓ Blockchain NFT mint (proof of verification)          │
+│ 3. Return ONLY:                                            │
+│    • Verification status: ✅ PASSED / ❌ FAILED           │
+│    • NFT Token ID: nft_123456                             │
+│    • Verification ID: ver_789abc                          │
+│                                                            │
+│ 4. ⚠️ DATA DELETED after verification                     │
+│    (photos, ID images NOT stored permanently)             │
+│                                                            │
+│ 5. ✅ Only verification RESULT stored on blockchain       │
+└─────────────────────────────────────────────────────────────┘
+                    ↓
+        (Return verification result)
+                    ↓
+┌─────────────────────────────────────────────────────────────┐
+│ YOUR NEOBANK APP                                            │
+│                                                             │
+│ Receive from ProofPass:                                    │
+│ {                                                          │
+│   "status": "verified",                                    │
+│   "verificationId": "ver_789abc",                         │
+│   "nftTokenId": "nft_123456",                             │
+│   "blockchain": {                                          │
+│     "txHash": "0x123abc...",                              │
+│     "network": "Polygon",                                 │
+│     "timestamp": "2026-05-20T14:59:00Z"                  │
+│   }                                                        │
+│ }                                                          │
+│                                                            │
+│ ✅ YOU decide what to store:                             │
+│    • User profile (name, email, phone)                   │
+│    • Verification status                                 │
+│    • Verification ID (for audit trail)                   │
+│    • NFT Token ID (proof of verification)               │
+│                                                           │
+│ ⚠️ You DON'T have:                                       │
+│    • ID photos                                            │
+│    • Face photos                                          │
+│    • Raw biometric data                                   │
+│    • Document scans                                       │
+└─────────────────────────────────────────────────────────────┘
+```
 
-```javascript
-// User signs up with email on your neobank
-const userEmail = "john@example.com";
-const userId = generateUserIdFromEmail(userEmail); // your method
+### Why This Architecture?
 
-// Call ProofPass API
-async function checkExistingVerification() {
-  try {
-    const response = await fetch(
-      `https://proof-pass-verified-main.vercel.app/api/users?id=${userId}`
-    );
-    
-    if (response.ok) {
-      const user = await response.json();
-      
-      // Check if not an error response
-      if (!user.error) {
-        console.log("✅ User already verified with ProofPass!");
-        console.log(`Tier: ${user.tier}`);
-        console.log(`Valid until: ${new Date(user.expiresAt).toDateString()}`);
-        
-        // Skip your KYC, fast-track onboarding
-        return true;
-      }
-    }
-    
-    console.log("❌ User needs KYC verification");
-    return false;
-  } catch (error) {
-    console.error("Error checking ProofPass:", error);
-    return false; // Fallback to regular KYC
+**Data Security:**
+- Sensitive data (photos, ID scans) are **deleted immediately** after verification
+- Only the **verification result** is retained
+- You can't lose what you don't store
+
+**Privacy Compliance:**
+- GDPR: Users can request "right to be forgotten" - no personal data to delete
+- Your neobank decides what user profile data to store
+- ProofPass doesn't hold any sensitive personal information
+
+**Regulatory Compliance:**
+- Verification proof stored on blockchain (immutable audit trail)
+- Cannot be tampered with or deleted
+- Perfect for compliance audits
+
+---
+
+## 3. **Integration Code Example**
+
+### NodeJS/TypeScript
+
+```typescript
+// 1. Submit user data to ProofPass for verification
+async function verifyUser(userData: {
+  name: string;
+  idDocument: File;
+  facePhoto: File;
+  idType: string; // "national_id", "passport", etc
+}): Promise<VerificationResult> {
+  const formData = new FormData();
+  formData.append("name", userData.name);
+  formData.append("idDocument", userData.idDocument);
+  formData.append("facePhoto", userData.facePhoto);
+  formData.append("idType", userData.idType);
+
+  const response = await fetch("https://proof-pass-verified-main.vercel.app/api/users", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer sk_bs8rt5wgzf` // Your API key
+    },
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw new Error(`Verification failed: ${response.statusText}`);
   }
+
+  return response.json();
+}
+
+// 2. Handle the verification result
+const result = await verifyUser({
+  name: "John Doe",
+  idDocument: idFile,
+  facePhoto: faceFile,
+  idType: "national_id"
+});
+
+// Result you receive:
+{
+  "status": "verified",
+  "verificationId": "ver_789abc",
+  "nftTokenId": "nft_123456",
+  "blockchain": {
+    "txHash": "0x123abc...",
+    "network": "Polygon",
+    "timestamp": "2026-05-20T14:59:00Z"
+  }
+}
+
+// 3. Store ONLY what you need in your database
+db.users.insert({
+  userId: "user_123",
+  name: "John Doe",
+  email: "john@example.com",
+  phone: "+234-XXX-XXXX",
+  verificationStatus: "verified",
+  verificationId: "ver_789abc",        // ← Reference to ProofPass verification
+  nftTokenId: "nft_123456",            // ← Proof on blockchain
+  verifiedAt: new Date(),
+  // ⚠️ NO ID photos, NO face photos, NO biometric data
+})
+
+// 4. Retrieve verification from blockchain (immutable proof)
+async function getVerificationProof(verificationId: string) {
+  // Query blockchain to prove user was verified
+  // Immutable record: can't be faked or deleted
+  return blockchain.getRecord(verificationId);
+}
+```
+
+### Python Example
+
+```python
+import requests
+from typing import Dict
+
+class ProofPassClient:
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.base_url = "https://proof-pass-verified-main.vercel.app"
+
+    def verify_user(self, name: str, id_doc_path: str, 
+                   face_photo_path: str, id_type: str) -> Dict:
+        """
+        Verify user KYC without storing sensitive data
+        
+        ProofPass will:
+        1. ✓ Verify face liveness
+        2. ✓ Validate ID document
+        3. ✓ Check ID-Face match
+        4. ✓ Mint NFT on blockchain
+        5. ✗ DELETE all photos/documents
+        6. ✓ Return only verification result
+        """
+        headers = {
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+        with open(id_doc_path, 'rb') as id_file, \
+             open(face_photo_path, 'rb') as face_file:
+            
+            files = {
+                'idDocument': id_file,
+                'facePhoto': face_file,
+            }
+            
+            data = {
+                'name': name,
+                'idType': id_type,
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/api/users",
+                headers=headers,
+                files=files,
+                data=data
+            )
+            
+            return response.json()
+
+    def get_verification_status(self, verification_id: str) -> Dict:
+        """
+        Check verification status from blockchain
+        (immutable, can't be forged)
+        """
+        headers = {
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+        response = requests.get(
+            f"{self.base_url}/api/users?id={verification_id}",
+            headers=headers
+        )
+        
+        return response.json()
+
+
+# Usage
+client = ProofPassClient(api_key="sk_bs8rt5wgzf")
+
+result = client.verify_user(
+    name="John Doe",
+    id_doc_path="./id_photo.jpg",
+    face_photo_path="./face_photo.jpg",
+    id_type="national_id"
+)
+
+print(f"Verification Status: {result['status']}")
+print(f"NFT Token: {result['nftTokenId']}")
+print(f"Blockchain TX: {result['blockchain']['txHash']}")
+
+# Store in your database
+user = {
+    'name': 'John Doe',
+    'verification_id': result['verificationId'],
+    'nft_token': result['nftTokenId'],
+    'verified_at': datetime.now()
+}
+```
+
+---
+
+## 4. **Key Benefits for Your Neobank**
+
+### ✅ What You GET:
+- Verified user confirmation (✓ PASSED / ❌ FAILED)
+- NFT proof on Polygon blockchain (immutable verification record)
+- Verification timestamp and transaction hash
+- Regulatory audit trail (blockchain is permanent)
+- Liveness detection (prevents fake IDs)
+- Face-ID matching verification
+
+### ⚠️ What You DON'T store:
+- User photos (face images)
+- ID document scans
+- Biometric data
+- Raw verification documents
+- Sensitive personal information
+
+### 🔒 Privacy Benefits:
+- **GDPR Compliant:** No personal data permanently stored on our servers
+- **Data Minimization:** Only verification result stored, not raw data
+- **User Privacy:** Sensitive documents are deleted after verification
+- **Blockchain Immutability:** Verification can't be tampered with
+- **Your Control:** You decide what to store in YOUR database
+
+---
+
+## 5. **Admin Dashboard Features**
+
+### For Neobank Admins: Monitor Integration
+
+**URL:** https://proof-pass-verified-main.vercel.app/admin
+
+**Tabs Available:**
+
+| Tab | What You See |
+|-----|---|
+| **Overview** | Total users verified, users by tier, users by region |
+| **API Keys** | Your API keys, request usage, last used timestamp |
+| **Blockchain** | NFTs minted, confirmed transactions, Polygon network status |
+| **Users** | User verification history, timestamps, status |
+
+**Refresh:** Click "Refresh" to get latest stats
+**Export:** Download verification reports for compliance
+
+---
+
+## 6. **Compliance & Audit Trail**
+
+### For Your Auditors:
+
+All verifications are recorded on **Polygon blockchain:**
+- ✓ Immutable verification records
+- ✓ Cannot be deleted or modified
+- ✓ Public transaction history (optional transparency)
+- ✓ Timestamp proof
+- ✓ User verification status
+
+### Access Verification Proof:
+
+```bash
+# Query blockchain using Polygon explorer
+curl "https://polygonscan.com/tx/{txHash}"
+
+# Returns immutable proof:
+{
+  "from": "0xProofPassContract",
+  "to": "0xUserNFTWallet",
+  "input": "0xMintNFT(verificationId, userId, timestamp)",
+  "blockNumber": 12345678,
+  "timeStamp": 1684667400,
+  "gasUsed": 150000,
+  "status": "1" // Success
+}
+```
+
+---
+
+## 7. **Pricing Model** (Example)
+
+| Tier | Users/Month | Price | Features |
+|------|---|---|---|
+| **Starter** | 100 | $29/mo | 100 verifications/month |
+| **Growth** | 1,000 | $99/mo | 1,000 verifications/month |
+| **Enterprise** | Unlimited | Custom | Unlimited verifications + white-label |
+
+---
+
+## 8. **Next Steps**
+
+### To get started:
+1. ✅ Sign up on admin dashboard
+2. ✅ Generate API key
+3. ✅ Integrate into your KYC flow
+4. ✅ Test with sample user
+5. ✅ Launch production
+6. ✅ Monitor on admin dashboard
+
+### Support:
+- Email: support@proofpass.io
+- Slack: Join community
+- Docs: Full API reference
+
+---
+
+## 9. **FAQ**
+
+**Q: Where is the user data stored?**
+A: Only the verification RESULT is stored (on blockchain). Original photos/documents are deleted after verification completes.
+
+**Q: Can users request their data?**
+A: Yes, they get only: verification ID, NFT token, timestamp. No photos or biometric data to share (it's deleted).
+
+**Q: Is this GDPR compliant?**
+A: Yes. We delete personal data after verification (right to be forgotten). Only your neobank retains user profile data.
+
+**Q: Can verification be faked?**
+A: No. Blockchain proof is immutable. You can verify on Polygon explorer anytime.
+
+**Q: What happens if verification fails?**
+A: User is notified. No data is stored. They can re-try anytime.
+
+**Q: How long does verification take?**
+A: ~5-30 seconds depending on document quality and network.
+
+**Q: Can I white-label this?**
+A: Yes, Enterprise tier includes custom branding.
+
+**Q: What payment methods do you accept?**
+A: Credit card, bank transfer, crypto (stablecoin).
+
+---
+
+## 10. **Quick Start Checklist**
+
+- [ ] Generate API Key from admin dashboard
+- [ ] Add API key to environment variables
+- [ ] Install SDK (npm/pip)
+- [ ] Implement verify endpoint in your backend
+- [ ] Test with sample user data
+- [ ] Deploy to production
+- [ ] Monitor dashboard for usage stats
+- [ ] Contact support for enterprise features
+
+---
+
+## Support & Documentation
+
+- **Admin Dashboard:** https://proof-pass-verified-main.vercel.app/admin
+- **Status Page:** https://status.proofpass.io
+- **Community:** https://slack.proofpass.io
+- **GitHub:** https://github.com/proof-pass/sdk
 }
 ```
 
