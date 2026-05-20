@@ -4,23 +4,9 @@ import tailwindcss from "@tailwindcss/vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
-  plugins: [
-    viteReact(),
-    tailwindcss(),
-    tsconfigPaths(),
-  ],
+  plugins: [viteReact(), tailwindcss(), tsconfigPaths()],
   build: {
-    target: "ES2022",
+    target: "ES2020",
     outDir: "dist",
-    ssr: false,
-  },
-  ssr: {
-    noExternal: [
-      "sonner",
-      "@tanstack/react-start",
-      "@tanstack/react-router",
-      "@tanstack/react-query",
-      "@tanstack/start-storage-context",
-    ],
   },
 });

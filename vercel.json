@@ -1,6 +1,6 @@
 {
-  "buildCommand": "echo 'Skipping build - project requires Cloudflare Workers'",
+  "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "framework": null,
-  "public": "."
+  "framework": "vite",
+  "outputDirectory": "dist"
 }
