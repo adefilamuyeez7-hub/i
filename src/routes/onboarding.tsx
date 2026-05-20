@@ -69,7 +69,7 @@ function Onboarding() {
     try {
       const userData = {
         id: userId,
-        email: formData.email,
+        email: formData.email || `user_${userId}@proofpass.io`,
         accountType: formData.accountType,
         status: "Complete",
         tier: "Tier 2 — Full",
@@ -91,7 +91,11 @@ function Onboarding() {
         body: JSON.stringify(userData),
       });
       
+      const data = await res.json();
       if (res.ok) {
+        navigate({ to: "/dashboard" });
+      } else {
+        console.error("API error:", data);
         navigate({ to: "/dashboard" });
       }
     } catch (error) {
