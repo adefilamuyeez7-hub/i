@@ -28,7 +28,7 @@ const STEPS: Step[] = [
 
   { id: "identity-doc", group: "Identity verification", title: "Verify your identity", subtitle: "Select the document type you'd like to use." },
   { id: "identity-upload", group: "Identity verification", title: "Upload a clear photo of your document", subtitle: "Both sides if your ID is two-sided." },
-  { id: "identity-selfie", group: "Identity verification", title: "Confirm your address", subtitle: "Liveness check — a 3-second video, no instructions needed." },
+  { id: "identity-selfie", group: "Identity verification", title: "Liveness check", subtitle: "Liveness check — a 3-second video, no instructions needed." },
 
   { id: "address", group: "Address verification", title: "Residential address", subtitle: "We need this for jurisdiction-aware tier assignment." },
   { id: "address-proof", group: "Address verification", title: "Confirm your address", subtitle: "Upload a utility bill, bank statement, or payroll check from the last 3 months." },
@@ -58,6 +58,8 @@ function Onboarding() {
     lastName: "",
     dateOfBirth: "",
     nationality: "",
+    userToken: `Token #${Math.floor(Math.random() * 100000).toString().padStart(5, "0")}`,
+    walletAddress: `0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 10)}`,
   });
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [verificationCode, setVerificationCode] = useState("");
@@ -371,7 +373,15 @@ function Onboarding() {
             </header>
 
             <div className="max-w-2xl flex-1">
-              <StepBody step={step.id} />
+              <StepBody 
+                step={step.id} 
+                formData={formData}
+                setFormData={setFormData}
+                emailVerified={emailVerified}
+                setEmailVerified={setEmailVerified}
+                validationErrors={validationErrors}
+                setValidationErrors={setValidationErrors}
+              />
             </div>
 
             <footer className="mt-10 flex items-center justify-between border-t border-ink/10 pt-6">
@@ -425,22 +435,30 @@ function shortLabel(s: Step): string {
 
 function nextLabel(id: string): string {
   if (id === "email") return "Send link";
-  if (id === "email-sent") return "Resend email";
+  if (id === "email-sent") return "I've verified my email";
   if (id === "2fa-qr") return "Next step";
   return "Continue";
 }
 
 /* -------- Step bodies -------- */
 
-function StepBody({ step }: { step: string }) {
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    passwordConfirm: "",
-    firstName: "",
-    lastName: "",
-  });
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+function StepBody({ 
+  step,
+  formData,
+  setFormData,
+  emailVerified,
+  setEmailVerified,
+  validationErrors,
+  setValidationErrors
+}: { 
+  step: string;
+  formData: any;
+  setFormData: any;
+  emailVerified: boolean;
+  setEmailVerified: any;
+  validationErrors: string[];
+  setValidationErrors: any;
+}) {
 
   switch (step) {
     case "account":
@@ -474,8 +492,12 @@ function StepBody({ step }: { step: string }) {
           <label className="inline-flex items-center gap-2 text-sm text-ink/70 mt-4">
             <input
               type="checkbox"
+              checked={emailVerified}
+              onChange={(e) => {
+                setEmailVerified(e.target.checked);
+                if (e.target.checked) setValidationErrors([]);
+              }}
               className="size-4 accent-[oklch(0.27_0.16_268)]"
-              onChange={(e) => setValidationErrors([])}
             />
             I have verified my email address
           </label>
@@ -656,7 +678,7 @@ function StepBody({ step }: { step: string }) {
             can now onboard you in under three seconds.
           </p>
           <div className="mx-auto mt-6 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 font-mono text-xs text-ink ring-1 ring-ink/10">
-            Token #00821 · Tier 2 · Polygon
+            {formData.userToken} · Tier 2 · Polygon
           </div>
         </div>
       );

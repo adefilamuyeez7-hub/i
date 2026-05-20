@@ -588,6 +588,13 @@ function SectionPricing() {
                 ))}
               </ul>
               <button
+                onClick={() => {
+                  if (p.name === "Starter" || p.name === "Growth") {
+                    window.location.href = "/docs";
+                  } else if (p.name === "Network") {
+                    window.location.href = "mailto:sales@proofpass.com";
+                  }
+                }}
                 className={
                   "mt-auto rounded-full py-3.5 text-xs font-bold uppercase tracking-[0.18em] transition-opacity hover:opacity-90 " +
                   (p.featured ? "bg-cream text-ink" : "bg-ink text-cream")
